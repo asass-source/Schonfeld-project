@@ -333,3 +333,51 @@ function computeAnalytics() {
 }
 
 const ANALYTICS = computeAnalytics();
+
+// Funnel data per cycle (illustrative volumes blended with real outcome counts).
+// In production this would come straight out of the ATS.
+const FUNNEL_BY_YEAR = {
+  2025: { applied: 1247, phoneScreen: 312, r1: 156, r2: 64, offer: 22, accepted: 18 },
+  2024: { applied: 1089, phoneScreen: 287, r1: 134, r2: 58, offer: 24, accepted: 16 },
+  2023: { applied:  945, phoneScreen: 251, r1: 119, r2: 51, offer: 19, accepted: 14 },
+};
+
+// Suggested interview-question pools per pod, used by the briefing generator.
+// These are templated questions a real LLM would tailor to the candidate's resume.
+const POD_QUESTION_POOLS = {
+  atlas: [
+    "Walk me through your strongest investment thesis from your prior internship or coursework.",
+    "How do you size risk on a contrarian position when the consensus is against you?",
+    "What's a name you'd own today that the market has wrong, and what's the catalyst?",
+    "Tell me about a thesis that didn't work. What did you miss?",
+    "How do you think about when to add to a losing position vs. cut it?",
+  ],
+  helios: [
+    "Walk me through your most rigorous backtest. What was your in-sample / out-of-sample ratio?",
+    "How do you handle non-stationarity in your features?",
+    "Describe a time you had to debug a model that worked in research but failed in production.",
+    "Talk me through ridge vs. lasso — when would you reach for each?",
+    "How would you set up a research framework so a junior researcher can't accidentally peek at the future?",
+  ],
+  vanguard: [
+    "Frame the current US-EU rates differential. What's your conviction view?",
+    "What would you watch most closely if a major central bank pivoted next quarter?",
+    "Tell me about a non-consensus macro view you currently hold.",
+    "Walk me through how you'd express a curve trade you have conviction in.",
+    "What's a recent paper or piece of central-bank communication that shifted your thinking?",
+  ],
+  meridian: [
+    "Walk me through your favorite distressed-credit case study from the past two years.",
+    "How does covenant-light vs. covenant-loose change your recovery analysis?",
+    "What's a credit you'd be short today, and what's the trigger?",
+    "Talk me through a capital structure where the market is mispricing the layered risk.",
+    "How do you stress-test liquidity assumptions in your fundamental work?",
+  ],
+  apex: [
+    "Walk me through a low-latency optimization you've made. What was the bottleneck?",
+    "How do you ensure point-in-time correctness in a backtest?",
+    "What's the right level of abstraction for a research framework — and where have you seen it go wrong?",
+    "Tell me about a system you built where correctness mattered more than performance.",
+    "How would you design a fair leakage test for a new alpha signal?",
+  ],
+};

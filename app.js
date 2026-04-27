@@ -124,13 +124,14 @@
     return el("span", { class: map[status] || "pill" }, status);
   }
 
-  function candidateCard(cand) {
+  function candidateCard(cand, opts = {}) {
     const card = el("div", { class: "candidate-card" });
-    card.appendChild(el("div", { class: "candidate-head" }, [
+    const head = el("div", { class: "candidate-head" }, [
       el("div", { class: "candidate-name" }, cand.name),
       el("div", { class: "candidate-meta" },
         `${cand.school} · ${cand.major} · Class of ${cand.gradYear}`),
-    ]));
+    ]);
+    card.appendChild(head);
     const cycles = el("div", { class: "cycles" });
     for (const cy of cand.cycles) {
       const pod = POD_INFO[cy.pod];
@@ -149,6 +150,16 @@
       cycles.appendChild(cyc);
     }
     card.appendChild(cycles);
+
+    if (opts.actions !== false) {
+      const actions = el("div", { class: "candidate-actions" });
+      const briefBtn = el("button", { class: "card-action" }, "Generate pre-interview brief");
+      briefBtn.addEventListener("click", () => {
+        ask(`Brief me on ${cand.name} for an upcoming interview.`);
+      });
+      actions.appendChild(briefBtn);
+      card.appendChild(actions);
+    }
     return card;
   }
 
@@ -380,6 +391,323 @@
     };
   }
 
+  // ---------- Pre-interview briefing ----------
+  function pickSimilarCandidates(target, n = 3) {
+    const targetTags = new Set(target.tags || []);
+    const targetPods = new Set((target.cycles || []).map(c => c.pod));
+    return CANDIDATES
+      .filter(c => c.id !== target.id)
+      .map(c => {
+        let score = 0;
+        if (c.school === target.school) score += 3;
+        if (c.major === target.major) score += 2;
+        for (const t of (c.tags || [])) if (targetTags.has(t)) score += 1;
+        for (const cy of c.cycles) if (targetPods.has(cy.pod)) score += 1;
+        return { c, score };
+      })
+      .filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, n)
+      .map(x => x.c);
+  }
+
+  function buildWatchOuts(target) {
+    const outs = [];
+    if (target.cycles.length > 1) {
+      const past = target.cycles[0];
+      outs.push(`Returning candidate — was in our ${past.year} cycle (${past.status}). Acknowledge the prior conversation early.`);
+    }
+    const targetPod = target.cycles[target.cycles.length - 1]?.pod;
+    const peerDeclines = CANDIDATES.flatMap(c =>
+      c.cycles.filter(cy => cy.pod === targetPod && cy.status === "declined" && cy.declineReason)
+        .map(cy => ({ c, cy }))
+    );
+    if (peerDeclines.length >= 2) {
+      const reasons = peerDeclines.map(p => p.cy.declineReason).join("; ");
+      outs.push(`${peerDeclines.length} candidates with this pod target have declined recently. Common themes: ${reasons.split("(")[1]?.split(")")[0] || "comp / culture"}. Address proactively.`);
+    }
+    const sameSchoolStats = ANALYTICS.bySchool.find(r => r.school === target.school);
+    if (sameSchoolStats && sameSchoolStats.acceptRate >= 0.8 && sameSchoolStats.offers >= 2) {
+      outs.push(`${target.school} has converted at ${Math.round(sameSchoolStats.acceptRate * 100)}% across recent cycles. Strong school-level demand signal — move with confidence on offer timing.`);
+    }
+    if (sameSchoolStats && sameSchoolStats.acceptRate < 0.5 && sameSchoolStats.offers >= 2) {
+      outs.push(`${target.school} has converted at only ${Math.round(sameSchoolStats.acceptRate * 100)}% recently. Yield risk — over-invest in selling the pod fit.`);
+    }
+    if (!outs.length) {
+      outs.push("No specific risk patterns flagged. Run a standard pod-fit interview.");
+    }
+    return outs;
+  }
+
+  function answerInterviewBrief(name) {
+    const matches = findCandidatesByName(name);
+    return (bubble) => {
+      if (!matches.length) {
+        bubble.appendChild(el("p", {},
+          `I couldn't find a candidate matching "${name}" to brief on. Check the name or paste their Greenhouse link.`));
+        return;
+      }
+      const target = matches[0];
+      const targetCycle = target.cycles[target.cycles.length - 1];
+      const targetPod = POD_INFO[targetCycle.pod];
+      const similar = pickSimilarCandidates(target, 3);
+      const questionPool = POD_QUESTION_POOLS[targetCycle.pod] || [];
+      const questions = questionPool.slice(0, 5);
+      const watchOuts = buildWatchOuts(target);
+
+      bubble.appendChild(el("div", { class: "brief-header" }, [
+        el("div", { class: "brief-eyebrow" }, "Pre-Interview Brief"),
+        el("div", { class: "brief-title" }, target.name),
+        el("div", { class: "brief-sub" },
+          `${target.school} · ${target.major} · Class of ${target.gradYear}  ·  Interviewing for ${targetPod.name} (${targetPod.strategy})`),
+      ]));
+
+      // Snapshot
+      const snapshot = el("div", { class: "brief-grid" }, [
+        el("div", { class: "brief-stat" }, [
+          el("div", { class: "brief-stat-label" }, "Cycles on file"),
+          el("div", { class: "brief-stat-value" }, String(target.cycles.length)),
+        ]),
+        el("div", { class: "brief-stat" }, [
+          el("div", { class: "brief-stat-label" }, "Latest status"),
+          el("div", { class: "brief-stat-value" }, targetCycle.status),
+        ]),
+        el("div", { class: "brief-stat" }, [
+          el("div", { class: "brief-stat-label" }, "Pod target"),
+          el("div", { class: "brief-stat-value" }, targetPod.name),
+        ]),
+        el("div", { class: "brief-stat" }, [
+          el("div", { class: "brief-stat-label" }, "Tags"),
+          el("div", { class: "brief-stat-value small" }, (target.tags || []).join(", ") || "—"),
+        ]),
+      ]);
+      bubble.appendChild(snapshot);
+
+      // Prior touchpoints
+      bubble.appendChild(el("div", { class: "brief-section-title" }, "Prior touchpoints"));
+      bubble.appendChild(candidateCard(target, { actions: false }));
+
+      // Similar past candidates
+      if (similar.length) {
+        bubble.appendChild(el("div", { class: "brief-section-title" }, "Similar past candidates in our history"));
+        const list = el("div", { class: "intern-list" });
+        for (const c of similar) {
+          const cy = c.cycles[c.cycles.length - 1];
+          const reason = c.school === target.school ? "Same school"
+            : c.major === target.major ? "Same major"
+            : (target.tags || []).some(t => (c.tags || []).includes(t)) ? "Overlapping focus area"
+            : "Same pod target";
+          list.appendChild(el("div", { class: "intern" }, [
+            el("div", { class: "intern-row" }, [
+              el("span", { class: "intern-name" }, c.name),
+              el("span", { class: "intern-school" }, `${c.school} · ${c.major}`),
+              el("span", { class: "intern-score" }, cy.score ? `Score ${cy.score.toFixed(1)}` : ""),
+              statusPill(cy.status),
+            ]),
+            el("div", { class: "intern-summary" }, [
+              el("strong", {}, "Why similar: "), reason, ". ",
+              cy.summary,
+            ]),
+          ]));
+        }
+        bubble.appendChild(list);
+      }
+
+      // Suggested interview questions
+      bubble.appendChild(el("div", { class: "brief-section-title" }, [
+        "Suggested questions ", el("span", { class: "brief-section-sub" }, `tailored to ${targetPod.name}`),
+      ]));
+      const qlist = el("ol", { class: "brief-questions" });
+      for (const q of questions) qlist.appendChild(el("li", {}, q));
+      bubble.appendChild(qlist);
+
+      // Watch-outs
+      bubble.appendChild(el("div", { class: "brief-section-title" }, "Watch-outs"));
+      const wlist = el("ul", { class: "brief-watchouts" });
+      for (const w of watchOuts) wlist.appendChild(el("li", {}, w));
+      bubble.appendChild(wlist);
+
+      // Trace
+      renderTrace(bubble, [
+        `Resolved candidate "${name}" → ${target.id}`,
+        `Pulled ${target.cycles.length} prior cycle(s) and linked source documents`,
+        `Ranked similar past candidates by school + major + pod-fit overlap → returned top ${similar.length}`,
+        `Selected suggested questions from the ${targetPod.name} pod question pool`,
+        "Composed watch-outs from school yield stats, pod decline patterns, and prior-cycle history",
+        "In production this brief would be a live document — interviewers can edit, share, or print before the call",
+      ]);
+    };
+  }
+
+  // ---------- Dashboard ----------
+  function svg(tag, attrs = {}, children = []) {
+    const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    for (const child of [].concat(children)) {
+      if (child == null) continue;
+      if (typeof child === "string") node.appendChild(document.createTextNode(child));
+      else node.appendChild(child);
+    }
+    return node;
+  }
+
+  function renderFunnelChart(year) {
+    const f = FUNNEL_BY_YEAR[year];
+    const stages = [
+      ["Applied", f.applied],
+      ["Phone screen", f.phoneScreen],
+      ["Round 1", f.r1],
+      ["Round 2", f.r2],
+      ["Offer extended", f.offer],
+      ["Offer accepted", f.accepted],
+    ];
+    const max = stages[0][1];
+    const w = 460, rowH = 28, padTop = 8;
+    const root = svg("svg", { viewBox: `0 0 ${w} ${stages.length * rowH + padTop * 2}`, class: "chart-svg" });
+    stages.forEach(([label, value], i) => {
+      const barW = Math.max(2, (value / max) * (w - 170));
+      const y = padTop + i * rowH;
+      root.appendChild(svg("text", { x: 0, y: y + 18, class: "chart-label" }, label));
+      root.appendChild(svg("rect", { x: 110, y: y + 6, width: barW, height: 18, rx: 3, ry: 3, class: "chart-bar" }));
+      root.appendChild(svg("text", { x: 110 + barW + 6, y: y + 19, class: "chart-value" }, value.toLocaleString()));
+      if (i > 0) {
+        const prev = stages[i - 1][1];
+        const conv = Math.round((value / prev) * 100);
+        root.appendChild(svg("text", { x: w - 4, y: y + 19, class: "chart-conv", "text-anchor": "end" }, `${conv}%`));
+      }
+    });
+    return root;
+  }
+
+  function renderSchoolBarChart() {
+    const top = ANALYTICS.bySchool.filter(r => r.offers >= 2).slice(0, 6);
+    const w = 460, rowH = 26, padTop = 8;
+    const root = svg("svg", { viewBox: `0 0 ${w} ${top.length * rowH + padTop * 2}`, class: "chart-svg" });
+    top.forEach((r, i) => {
+      const pct = r.acceptRate;
+      const barW = Math.max(2, pct * (w - 170));
+      const y = padTop + i * rowH;
+      root.appendChild(svg("text", { x: 0, y: y + 17, class: "chart-label" }, r.school));
+      root.appendChild(svg("rect", { x: 130, y: y + 6, width: w - 170, height: 16, rx: 2, ry: 2, class: "chart-bar-bg" }));
+      root.appendChild(svg("rect", { x: 130, y: y + 6, width: barW, height: 16, rx: 2, ry: 2, class: "chart-bar-gold" }));
+      root.appendChild(svg("text", { x: w - 4, y: y + 18, class: "chart-value", "text-anchor": "end" }, `${Math.round(pct * 100)}%`));
+    });
+    return root;
+  }
+
+  function renderDeclineThemeChart() {
+    const themes = {
+      "Competing offer (comp/brand)": 0,
+      "Research culture / project ownership": 0,
+      "Training / peer cohort": 0,
+      "Geography / pod transparency": 0,
+    };
+    for (const c of CANDIDATES) for (const cy of c.cycles) {
+      if (cy.status !== "declined" || !cy.declineReason) continue;
+      const r = cy.declineReason.toLowerCase();
+      if (r.includes("comp") || r.includes("brand") || r.includes("pipeline")) themes["Competing offer (comp/brand)"]++;
+      else if (r.includes("research") || r.includes("project") || r.includes("horizon")) themes["Research culture / project ownership"]++;
+      else if (r.includes("training") || r.includes("cohort") || r.includes("peer")) themes["Training / peer cohort"]++;
+      else themes["Geography / pod transparency"]++;
+    }
+    const total = Object.values(themes).reduce((a, b) => a + b, 0) || 1;
+    const colors = ["#14213d", "#b08a3e", "#3e4f66", "#7a8699"];
+    const w = 460, h = 28;
+    const root = svg("svg", { viewBox: `0 0 ${w} ${h + 70}`, class: "chart-svg" });
+    let x = 0, i = 0;
+    const entries = Object.entries(themes);
+    for (const [label, count] of entries) {
+      const segW = (count / total) * w;
+      root.appendChild(svg("rect", { x, y: 0, width: segW, height: h, fill: colors[i % colors.length] }));
+      x += segW;
+      i++;
+    }
+    // Legend below
+    let lx = 0, ly = h + 16;
+    entries.forEach(([label, count], idx) => {
+      root.appendChild(svg("rect", { x: lx, y: ly - 9, width: 10, height: 10, fill: colors[idx % colors.length] }));
+      const text = svg("text", { x: lx + 14, y: ly, class: "chart-legend" }, `${label} (${count})`);
+      root.appendChild(text);
+      ly += 14;
+    });
+    return root;
+  }
+
+  function answerDashboard() {
+    return (bubble) => {
+      bubble.appendChild(el("p", {},
+        "Here's the recruiting pipeline at a glance. Funnel volumes are illustrative; conversion rates and yield stats come straight out of our recruiting history."));
+
+      const grid = el("div", { class: "dash-grid" });
+
+      // Funnel card — current cycle
+      const funnelCard = el("div", { class: "dash-card span-2" }, [
+        el("div", { class: "dash-card-title" }, "2025 cycle funnel"),
+        el("div", { class: "dash-card-sub" }, "Stage volumes; right column = stage-to-stage conversion"),
+        renderFunnelChart(2025),
+      ]);
+      grid.appendChild(funnelCard);
+
+      // Headline stats
+      const f25 = FUNNEL_BY_YEAR[2025], f24 = FUNNEL_BY_YEAR[2024];
+      const yoyOffers = Math.round(((f25.offer - f24.offer) / f24.offer) * 100);
+      const yoyAccepted = Math.round(((f25.accepted - f24.accepted) / f24.accepted) * 100);
+      const overallAcceptRate = Math.round((f25.accepted / f25.offer) * 100);
+
+      const stats = el("div", { class: "dash-card" }, [
+        el("div", { class: "dash-card-title" }, "Headline stats"),
+        el("div", { class: "headline-grid" }, [
+          el("div", { class: "headline-stat" }, [
+            el("div", { class: "headline-value" }, String(f25.offer)),
+            el("div", { class: "headline-label" }, "Offers extended"),
+            el("div", { class: `headline-delta ${yoyOffers >= 0 ? "up" : "down"}` }, `${yoyOffers >= 0 ? "▲" : "▼"} ${Math.abs(yoyOffers)}% vs '24`),
+          ]),
+          el("div", { class: "headline-stat" }, [
+            el("div", { class: "headline-value" }, String(f25.accepted)),
+            el("div", { class: "headline-label" }, "Offers accepted"),
+            el("div", { class: `headline-delta ${yoyAccepted >= 0 ? "up" : "down"}` }, `${yoyAccepted >= 0 ? "▲" : "▼"} ${Math.abs(yoyAccepted)}% vs '24`),
+          ]),
+          el("div", { class: "headline-stat" }, [
+            el("div", { class: "headline-value" }, `${overallAcceptRate}%`),
+            el("div", { class: "headline-label" }, "Yield"),
+            el("div", { class: "headline-delta neutral" }, `Industry-tier`),
+          ]),
+        ]),
+      ]);
+      grid.appendChild(stats);
+
+      // School yield card
+      const schoolCard = el("div", { class: "dash-card" }, [
+        el("div", { class: "dash-card-title" }, "Top-yield schools (3-cycle)"),
+        el("div", { class: "dash-card-sub" }, "Filtered to schools with ≥ 2 offers"),
+        renderSchoolBarChart(),
+      ]);
+      grid.appendChild(schoolCard);
+
+      // Decline themes card
+      const declineCard = el("div", { class: "dash-card span-2" }, [
+        el("div", { class: "dash-card-title" }, "Decline reasons by theme"),
+        el("div", { class: "dash-card-sub" }, "Across recent cycles, all declines"),
+        renderDeclineThemeChart(),
+      ]);
+      grid.appendChild(declineCard);
+
+      bubble.appendChild(grid);
+
+      bubble.appendChild(el("p", { class: "muted" },
+        "Recruiting leadership uses this view in the weekly review. Drill-downs (by pod, by recruiter, by stage) would live one click deep in production."));
+
+      renderTrace(bubble, [
+        "Loaded funnel data for the active cycle (2025) and prior cycle (2024)",
+        "Computed YoY deltas on offers extended and offers accepted",
+        `Computed accept rates across ${ANALYTICS.bySchool.length} schools, filtered to ≥ 2 offers`,
+        "Clustered all decline reasons into 4 themes via keyword tagging",
+        "Rendered four chart cards inline using SVG (no chart library)",
+        "In production this would be a fully filterable view — by pod, year, role, recruiter",
+      ]);
+    };
+  }
+
   function answerGeneric(query) {
     return (bubble) => {
       bubble.appendChild(el("p", {},
@@ -404,6 +732,25 @@
   // ---------- Routing ----------
   function route(query) {
     const q = query.toLowerCase();
+
+    // Dashboard / pipeline overview
+    if (q.includes("dashboard") || q.includes("pipeline overview") ||
+        (q.includes("pipeline") && (q.includes("show") || q.includes("overview"))) ||
+        q.includes("recruiting metrics") || q.includes("funnel")) {
+      return answerDashboard();
+    }
+
+    // Pre-interview briefing
+    if (q.includes("brief") || q.includes("prep me") || q.includes("interview prep") ||
+        q.includes("prepare me") || q.includes("getting ready for") || q.includes("prep for")) {
+      const briefMatches = CANDIDATES.filter(c => {
+        const parts = c.name.toLowerCase().split(/\s+/);
+        return parts.every(p => q.includes(p)) || q.includes(c.name.toLowerCase());
+      });
+      if (briefMatches.length) return answerInterviewBrief(briefMatches[0].name);
+      const m = query.match(/(?:brief(?:\s+me)?(?:\s+on)?|prep(?:\s+me)?(?:\s+for)?|prepare(?:\s+me)?(?:\s+for)?)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){0,2})/i);
+      if (m) return answerInterviewBrief(m[1]);
+    }
 
     for (const podKey of Object.keys(POD_INFO)) {
       const podName = POD_INFO[podKey].name.toLowerCase();
