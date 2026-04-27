@@ -34,10 +34,17 @@
       el("div", { class: "avatar user" }, "You"),
     ]);
     messagesEl.appendChild(msg);
-    msg.scrollIntoView({ behavior: "smooth", block: "end" });
+    return msg;
   }
 
-  function addAssistantMessage(buildBubble) {
+  function scrollToTopOf(msg) {
+    // Scroll so the user's question sits at the top of the viewport,
+    // not the end of the answer below it.
+    if (!msg) return;
+    msg.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function addAssistantMessage(buildBubble, anchorMsg) {
     const bubble = el("div", { class: "bubble" });
     const msg = el("div", { class: "msg assistant" }, [
       el("div", { class: "avatar" }, "AI"),
@@ -50,12 +57,12 @@
       el("span", { class: "thinking-label" }, "Searching recruiting history…"),
     ]);
     bubble.appendChild(shimmer);
-    msg.scrollIntoView({ behavior: "smooth", block: "end" });
+    scrollToTopOf(anchorMsg);
 
     setTimeout(() => {
       bubble.innerHTML = "";
       buildBubble(bubble);
-      msg.scrollIntoView({ behavior: "smooth", block: "end" });
+      scrollToTopOf(anchorMsg);
     }, 650);
   }
 
@@ -441,10 +448,10 @@
     if (!query || !query.trim()) return;
     // Replace, don't append: each new question shows only the latest exchange.
     clearMessages();
-    addUserMessage(query);
+    const userMsg = addUserMessage(query);
     input.value = "";
     const renderer = route(query.trim());
-    addAssistantMessage(renderer);
+    addAssistantMessage(renderer, userMsg);
   }
 
   form.addEventListener("submit", (e) => {
