@@ -106,11 +106,19 @@
   }
 
   // ---------- Candidate utilities ----------
+  // Diacritic-insensitive normalization so "Tomas Rivera" matches "Tomás Rivera".
+  function normalize(s) {
+    return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  }
+
   function findCandidatesByName(query) {
-    const q = query.toLowerCase();
+    const q = normalize(query);
+    if (!q.trim()) return [];
     return CANDIDATES.filter(c => {
-      const tokens = c.name.toLowerCase().split(/\s+/);
-      return tokens.every(t => q.includes(t)) || q.includes(c.name.toLowerCase());
+      const fullName = normalize(c.name);
+      if (q.includes(fullName)) return true;
+      const tokens = fullName.split(/\s+/);
+      return tokens.length > 1 && tokens.every(t => q.includes(t));
     });
   }
 
@@ -411,6 +419,16 @@
       .map(x => x.c);
   }
 
+  function classifyDeclineTheme(reason) {
+    const r = (reason || "").toLowerCase();
+    if (r.includes("comp") || r.includes("brand") || r.includes("pipeline")) return "compensation / brand";
+    if (r.includes("research") || r.includes("project") || r.includes("horizon")) return "research culture";
+    if (r.includes("training") || r.includes("cohort") || r.includes("peer")) return "training program / cohort";
+    if (r.includes("geograph") || r.includes("stamford") || r.includes("nyc") || r.includes("location")) return "geography";
+    if (r.includes("transparen") || r.includes("rotation") || r.includes("mentor")) return "pod transparency / mentorship";
+    return "fit";
+  }
+
   function buildWatchOuts(target) {
     const outs = [];
     if (target.cycles.length > 1) {
@@ -423,8 +441,17 @@
         .map(cy => ({ c, cy }))
     );
     if (peerDeclines.length >= 2) {
-      const reasons = peerDeclines.map(p => p.cy.declineReason).join("; ");
-      outs.push(`${peerDeclines.length} candidates with this pod target have declined recently. Common themes: ${reasons.split("(")[1]?.split(")")[0] || "comp / culture"}. Address proactively.`);
+      const themeCounts = {};
+      for (const p of peerDeclines) {
+        const t = classifyDeclineTheme(p.cy.declineReason);
+        themeCounts[t] = (themeCounts[t] || 0) + 1;
+      }
+      const topThemes = Object.entries(themeCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([t]) => t)
+        .join(" and ");
+      outs.push(`${peerDeclines.length} candidates with this pod target have declined recently. Recurring themes: ${topThemes}. Address proactively in the conversation.`);
     }
     const sameSchoolStats = ANALYTICS.bySchool.find(r => r.school === target.school);
     if (sameSchoolStats && sameSchoolStats.acceptRate >= 0.8 && sameSchoolStats.offers >= 2) {
@@ -730,28 +757,63 @@
   }
 
   // ---------- Routing ----------
+  // Word-boundary helpers — avoid "brief" matching inside "debrief"/"briefly".
+  const briefIntent = (q) =>
+    /\bbrief\b/.test(q) ||
+    /\binterview prep\b/.test(q) ||
+    /\bprep me\b/.test(q) ||
+    /\bprep for\b/.test(q) ||
+    /\bprepare me\b/.test(q) ||
+    /\bgetting ready for\b/.test(q);
+
+  const declineIntent = (q) =>
+    /\bdeclin(?:e|es|ed|ing)\b/.test(q) ||
+    (/\bturn(?:ed|ing)?\b/.test(q) && /\bdown\b/.test(q)) ||
+    /\breject(?:ed|ing)? our\b/.test(q) ||
+    /\bturn(?:ed|ing)? us down\b/.test(q);
+
+  function answerBriefMissingName() {
+    return (bubble) => {
+      bubble.appendChild(el("p", {},
+        "I can generate a pre-interview brief — who's the candidate? Try \"Brief me on Maya Patel\" or click the \"Generate pre-interview brief\" button on any candidate card."));
+      bubble.appendChild(el("p", { class: "muted" },
+        "I'll pull prior touchpoints, similar past hires, suggested interview questions, and watch-outs from our recruiting history."));
+      renderTrace(bubble, [
+        "Detected intent: pre-interview briefing",
+        "No candidate name resolved from the query",
+        "Returned a graceful clarification rather than guessing",
+      ]);
+    };
+  }
+
   function route(query) {
     const q = query.toLowerCase();
+    const qNorm = normalize(query);
 
-    // Dashboard / pipeline overview
+    // 1. Dashboard / pipeline overview
     if (q.includes("dashboard") || q.includes("pipeline overview") ||
         (q.includes("pipeline") && (q.includes("show") || q.includes("overview"))) ||
-        q.includes("recruiting metrics") || q.includes("funnel")) {
+        q.includes("recruiting metrics") || /\bfunnel\b/.test(q)) {
       return answerDashboard();
     }
 
-    // Pre-interview briefing
-    if (q.includes("brief") || q.includes("prep me") || q.includes("interview prep") ||
-        q.includes("prepare me") || q.includes("getting ready for") || q.includes("prep for")) {
-      const briefMatches = CANDIDATES.filter(c => {
-        const parts = c.name.toLowerCase().split(/\s+/);
-        return parts.every(p => q.includes(p)) || q.includes(c.name.toLowerCase());
-      });
-      if (briefMatches.length) return answerInterviewBrief(briefMatches[0].name);
-      const m = query.match(/(?:brief(?:\s+me)?(?:\s+on)?|prep(?:\s+me)?(?:\s+for)?|prepare(?:\s+me)?(?:\s+for)?)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){0,2})/i);
-      if (m) return answerInterviewBrief(m[1]);
+    // 2. Pre-interview briefing — only when the user names a known candidate.
+    if (briefIntent(q)) {
+      const matches = findCandidatesByName(query);
+      if (matches.length) return answerInterviewBrief(matches[0].name);
+      // No name resolved — ask gracefully instead of guessing from a regex.
+      return answerBriefMissingName();
     }
 
+    // 3. Specific candidate by name — wins over aggregate views so questions
+    //    like "Why did Aiko Nakamura decline?" return Aiko's record, not the
+    //    firm-wide decline themes view.
+    const nameMatches = findCandidatesByName(query);
+    if (nameMatches.length) {
+      return answerCandidateLookup(nameMatches[0].name);
+    }
+
+    // 4. Pod feedback
     for (const podKey of Object.keys(POD_INFO)) {
       const podName = POD_INFO[podKey].name.toLowerCase();
       if ((q.includes(podKey) || q.includes(podName)) &&
@@ -760,31 +822,23 @@
       }
     }
 
+    // 5. School yield stats
     if ((q.includes("school") || q.includes("schools") || q.includes("university") || q.includes("universities")) &&
         (q.includes("offer") || q.includes("accept") || q.includes("yield") || q.includes("rate"))) {
       return answerSchoolStats();
     }
 
-    if ((q.includes("decline") || q.includes("declined") || q.includes("turn down") || q.includes("turned down") || q.includes("reject our")) &&
-        (q.includes("reason") || q.includes("why") || q.includes("technical") || q.includes("offer"))) {
+    // 6. Decline themes (aggregate)
+    if (declineIntent(q) &&
+        (q.includes("reason") || q.includes("why") || q.includes("technical") || q.includes("offer") ||
+         q.includes("common") || q.includes("themes") || q.includes("trends"))) {
       return answerDeclineReasons();
     }
 
-    if (q.includes("similar") || q.includes("like ") || q.includes("looks like") || q.includes("background")) {
+    // 7. Similar candidates
+    if (/\bsimilar\b/.test(q) || /\blooks like\b/.test(q) || /\bbackground\b/.test(q) ||
+        /\blike a\b/.test(q) || /\blike an\b/.test(q)) {
       return answerSimilarCandidates(query);
-    }
-
-    const nameMatches = CANDIDATES.filter(c => {
-      const parts = c.name.toLowerCase().split(/\s+/);
-      return parts.every(p => q.includes(p)) || q.includes(c.name.toLowerCase());
-    });
-    if (nameMatches.length) {
-      return answerCandidateLookup(nameMatches[0].name);
-    }
-
-    if (q.includes("interview") || q.includes("spoken") || q.includes("met with") || q.includes("seen")) {
-      const m = query.match(/(?:interviewed|spoken (?:to|with)|met with|seen)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){0,2})/);
-      if (m) return answerCandidateLookup(m[1]);
     }
 
     return answerGeneric(query);
