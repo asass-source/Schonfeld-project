@@ -24,6 +24,10 @@
     return node;
   }
 
+  function clearMessages() {
+    messagesEl.innerHTML = "";
+  }
+
   function addUserMessage(text) {
     const msg = el("div", { class: "msg user" }, [
       el("div", { class: "bubble" }, text),
@@ -41,7 +45,6 @@
     ]);
     messagesEl.appendChild(msg);
 
-    // Lightweight typing/loading shimmer to feel less synchronous.
     const shimmer = el("div", { class: "thinking" }, [
       el("span", { class: "dot" }), el("span", { class: "dot" }), el("span", { class: "dot" }),
       el("span", { class: "thinking-label" }, "Searching recruiting history…"),
@@ -76,12 +79,31 @@
     bubble.appendChild(wrap);
   }
 
+  // Reasoning trace — collapsible "How I found this answer" element.
+  function renderTrace(bubble, steps) {
+    if (!steps || !steps.length) return;
+    const details = el("details", { class: "trace" });
+    const summary = el("summary", { class: "trace-summary" }, [
+      el("span", { class: "trace-icon" }, "▸"),
+      el("span", {}, "How I found this answer"),
+    ]);
+    details.appendChild(summary);
+    const list = el("ol", { class: "trace-list" });
+    for (const step of steps) {
+      list.appendChild(el("li", {}, step));
+    }
+    details.appendChild(list);
+    details.appendChild(el("div", { class: "trace-foot" },
+      "In production this view links to the retrieval log and the exact document chunks scored."));
+    bubble.appendChild(details);
+  }
+
   // ---------- Candidate utilities ----------
   function findCandidatesByName(query) {
     const q = query.toLowerCase();
     return CANDIDATES.filter(c => {
       const tokens = c.name.toLowerCase().split(/\s+/);
-      return tokens.some(t => q.includes(t)) || q.includes(c.name.toLowerCase());
+      return tokens.every(t => q.includes(t)) || q.includes(c.name.toLowerCase());
     });
   }
 
@@ -132,6 +154,11 @@
           `I don't have a record of a candidate matching "${name}" in our recruiting history.`));
         bubble.appendChild(el("p", { class: "muted" },
           "If they applied via a referral, the email may not have hit Greenhouse yet — try checking the #recruiting Slack channel."));
+        renderTrace(bubble, [
+          `Searched ATS records, interview notes, and Slack threads for "${name}"`,
+          "No candidates matched on full name or any token combination",
+          "Returned a graceful no-match response with a follow-up suggestion",
+        ]);
         return;
       }
       for (const cand of matches) {
@@ -143,6 +170,12 @@
         bubble.appendChild(candidateCard(cand));
         const allSources = cand.cycles.flatMap(c => c.sources || []);
         renderSources(bubble, allSources);
+        renderTrace(bubble, [
+          `Resolved "${name}" to candidate record ${cand.id} via name-token match`,
+          `Pulled ${cand.cycles.length} cycle${cand.cycles.length > 1 ? "s" : ""} from the ATS, ordered by year`,
+          `Joined ${allSources.length} linked source documents (interview notes, ATS records, debriefs, Slack)`,
+          "Synthesized a short narrative summary; surfaced decline reasons inline",
+        ]);
       }
     };
   }
@@ -178,6 +211,12 @@
       }
       bubble.appendChild(list);
       renderSources(bubble, sourceIds);
+      renderTrace(bubble, [
+        `Filtered candidate corpus by pod=${pod.name} AND year=${lastSummer}`,
+        `Found ${interns.length} matching cycle records`,
+        `Retrieved associated pod-debrief and interview-note documents (${sourceIds.length} sources)`,
+        "Ordered interns by score; preserved the pod's qualitative summary verbatim",
+      ]);
     };
   }
 
@@ -195,8 +234,10 @@
         el("th", {}, "Accept rate"),
       ])]));
       const tbody = el("tbody");
+      let rowCount = 0;
       for (const r of ANALYTICS.bySchool) {
         if (r.offers === 0) continue;
+        rowCount += 1;
         tbody.appendChild(el("tr", {}, [
           el("td", {}, r.school),
           el("td", {}, String(r.interviewed)),
@@ -211,6 +252,12 @@
       bubble.appendChild(el("p", { class: "muted" },
         "Caveat: small sample sizes at some schools — rates with <5 offers should be read directionally."));
       renderSources(bubble, ["src-080", "src-081"]);
+      renderTrace(bubble, [
+        `Scanned all ${CANDIDATES.length} candidate records and ${CANDIDATES.reduce((a,c)=>a+c.cycles.length,0)} cycle entries`,
+        "Grouped by school; computed offer rate (offers/interviewed) and accept rate (accepted/offers)",
+        `Filtered to ${rowCount} schools with at least one offer extended`,
+        "Sorted by accept rate, then offer count; flagged sample-size caveat",
+      ]);
     };
   }
 
@@ -223,7 +270,6 @@
         }
       }
     }
-    // Theme buckets — naive keyword grouping.
     const themes = {
       "Competing offer (comp / brand)": [],
       "Research culture & project ownership": [],
@@ -270,13 +316,18 @@
       }
       bubble.appendChild(themeWrap);
       bubble.appendChild(el("p", { class: "muted" },
-        "Recommendation surfaces: research-culture and project-ownership themes recur with our top quant declines — worth pressure-testing in the next round of debriefs."));
+        "Recommendation: research-culture and project-ownership themes recur with our top quant declines — worth pressure-testing in the next round of debriefs."));
       renderSources(bubble, sourceIds);
+      renderTrace(bubble, [
+        `Filtered candidates by status="declined" AND interview score ≥ 4.4 → ${declines.length} candidates`,
+        "Tagged each decline reason via keyword clustering (comp/brand, research culture, training/cohort, geography)",
+        `Aggregated counts per theme; sorted by frequency`,
+        "Surfaced the recurring theme as a follow-up recommendation (not just a count)",
+      ]);
     };
   }
 
   function answerSimilarCandidates(query) {
-    // Naive similarity: extract school/major/tag tokens from the query.
     const q = query.toLowerCase();
     const tokens = q.split(/[^a-z]+/).filter(t => t.length > 2);
     const scored = CANDIDATES.map(c => {
@@ -288,7 +339,6 @@
       for (const t of tokens) {
         if (hay.includes(t)) score += 1;
       }
-      // Boost for fundamental/equities/orfe combos referenced in the prompt.
       if (q.includes("fundamental") && c.tags?.includes("fundamental")) score += 2;
       if (q.includes("orfe") && /orfe/i.test(c.major)) score += 2;
       if (q.includes("princeton") && c.school === "Princeton") score += 1;
@@ -299,6 +349,11 @@
       if (!scored.length) {
         bubble.appendChild(el("p", {},
           "I couldn't find close matches in our history. Try giving me a school, major, or pod focus to anchor on."));
+        renderTrace(bubble, [
+          "Tokenized query for school, major, and pod-strategy keywords",
+          "Scored every candidate by feature overlap",
+          "No candidate scored above 0 — returned graceful no-match response",
+        ]);
         return;
       }
       bubble.appendChild(el("p", {},
@@ -308,6 +363,13 @@
         list.appendChild(candidateCard(c));
       }
       bubble.appendChild(list);
+      renderTrace(bubble, [
+        "Tokenized query → extracted school/major/pod-strategy keywords",
+        `Scored all ${CANDIDATES.length} candidates by feature overlap (school, major, tags, pod fit)`,
+        "Boosted Princeton + ORFE + fundamental matches per query intent",
+        "Returned top 5 by similarity score",
+        "In production this would use vector embeddings on candidate profiles + interview transcripts",
+      ]);
     };
   }
 
@@ -323,6 +385,12 @@
       ]));
       bubble.appendChild(el("p", { class: "muted" },
         `Try one of the suggested questions on the left to see a fully rendered example. (Your query: "${query}")`));
+      renderTrace(bubble, [
+        "Query did not match any canned demo handler",
+        "In production: route to the retrieval pipeline (BM25 + vector search over the recruiting corpus)",
+        "Synthesize a short answer with an LLM, constrained to cite the retrieved documents",
+        "Refuse to answer if no high-confidence source is found",
+      ]);
     };
   }
 
@@ -330,34 +398,28 @@
   function route(query) {
     const q = query.toLowerCase();
 
-    // Pod-feedback queries
     for (const podKey of Object.keys(POD_INFO)) {
       const podName = POD_INFO[podKey].name.toLowerCase();
-      const podShort = podKey;
-      if ((q.includes(podShort) || q.includes(podName)) &&
+      if ((q.includes(podKey) || q.includes(podName)) &&
           (q.includes("feedback") || q.includes("intern") || q.includes("summer") || q.includes("debrief"))) {
         return answerPodFeedback(podKey);
       }
     }
 
-    // School / yield stats
     if ((q.includes("school") || q.includes("schools") || q.includes("university") || q.includes("universities")) &&
         (q.includes("offer") || q.includes("accept") || q.includes("yield") || q.includes("rate"))) {
       return answerSchoolStats();
     }
 
-    // Decline reasons
     if ((q.includes("decline") || q.includes("declined") || q.includes("turn down") || q.includes("turned down") || q.includes("reject our")) &&
         (q.includes("reason") || q.includes("why") || q.includes("technical") || q.includes("offer"))) {
       return answerDeclineReasons();
     }
 
-    // Similar candidates
     if (q.includes("similar") || q.includes("like ") || q.includes("looks like") || q.includes("background")) {
       return answerSimilarCandidates(query);
     }
 
-    // Candidate name lookup — match if any candidate's name appears in the query.
     const nameMatches = CANDIDATES.filter(c => {
       const parts = c.name.toLowerCase().split(/\s+/);
       return parts.every(p => q.includes(p)) || q.includes(c.name.toLowerCase());
@@ -366,9 +428,7 @@
       return answerCandidateLookup(nameMatches[0].name);
     }
 
-    // Loose "have we interviewed / spoken with" without a recognized name
     if (q.includes("interview") || q.includes("spoken") || q.includes("met with") || q.includes("seen")) {
-      // Try last token chunks as a probable name
       const m = query.match(/(?:interviewed|spoken (?:to|with)|met with|seen)\s+([A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){0,2})/);
       if (m) return answerCandidateLookup(m[1]);
     }
@@ -379,6 +439,8 @@
   // ---------- Wire up ----------
   function ask(query) {
     if (!query || !query.trim()) return;
+    // Replace, don't append: each new question shows only the latest exchange.
+    clearMessages();
     addUserMessage(query);
     input.value = "";
     const renderer = route(query.trim());
@@ -392,5 +454,11 @@
 
   document.querySelectorAll(".suggested").forEach(btn => {
     btn.addEventListener("click", () => ask(btn.getAttribute("data-q")));
+  });
+
+  // Make insight cards clickable too — they pre-fill the question that produced them.
+  document.querySelectorAll(".insight").forEach(card => {
+    const q = card.getAttribute("data-q");
+    if (q) card.addEventListener("click", () => ask(q));
   });
 })();

@@ -94,6 +94,61 @@ Click any suggested question on the left, or type:
 - `Have we spoken with Nico Alvarez before?`
 - `What did the Helios pod say about last summer's interns?`
 
+## What you'll notice in the demo
+
+Beyond the chat itself, three details are worth pointing out — they reflect choices a real deployment would need to make:
+
+- **Reasoning trace.** Every answer has a "How I found this answer" panel — click it to see the retrieval/synthesis steps. Trust depends on showing your work, not on a confident tone.
+- **Proactive insights.** The sidebar surfaces things the recruiter didn't ask for ("Princeton ORFE converting at 100%," "research-culture theme in quant declines"). The product gets more valuable when it volunteers patterns.
+- **Privacy &amp; deployment.** A small panel summarizes how this would actually live inside Schonfeld's network — VPC-isolated, self-hosted models, role-based access, full audit log, source-cited only.
+
+## Roadmap — what would come next
+
+If this got real funding, here's how I'd phase it.
+
+### Phase 1 — Foundation (weeks 1–6)
+
+Goal: replace "asking around" with "asking the assistant," for read-only lookups.
+
+- **Ingestion connectors** for Greenhouse (or whichever ATS), Google Drive / SharePoint pod-debrief docs, and `#recruiting` Slack channels.
+- **Chunking + embedding pipeline** with a re-indexing job that runs nightly.
+- **Hybrid retrieval** (BM25 + vector) over the recruiting corpus.
+- **Citation-first synthesis** — every claim links to a source chunk; the assistant declines to answer when retrieval confidence is low.
+- **Role-based access control** wired to the firm's existing IAM (Okta / AD).
+- **Audit log** of every query and document accessed.
+
+Success metric: 75% of the recruiter team's "have we seen this person?" / "what did we say about X?" questions answered without manual lookup.
+
+### Phase 2 — Pattern surfacing (weeks 6–14)
+
+Goal: from lookup tool to thinking partner.
+
+- **Cohort analytics** — yield by school, pod, role, year. Anomaly detection on year-over-year shifts.
+- **Decline-theme clustering** — automatic theme extraction from exit conversations. Surface emerging concerns to recruiting leadership before they become trends.
+- **Pod-fit similarity** — vector search over candidate profiles + interview transcripts. "Find candidates who looked like our 2024 Atlas hires."
+- **Pipeline dashboards** — funnel-stage view, time-to-offer, acceptance latency.
+- **Proactive notifications** — *"Heads up: this candidate declined an offer in 2023 (reason: comp). Worth flagging in the call."*
+
+Success metric: recruiting leadership uses the dashboard in their weekly meeting; one pre-emptive intervention per cycle from a surfaced trend.
+
+### Phase 3 — Workflow integration (weeks 14–24)
+
+Goal: stop being a separate tab.
+
+- **Slack bot** — recruiters query the assistant from inside their normal workflow. Auto-summarized candidate cards posted before pod intro calls.
+- **Greenhouse plugin** — assistant context appears inline on every candidate page.
+- **Pre-interview briefing docs** — auto-generated 1-pager for the interviewer: prior touchpoints, school yield context, similar past hires, suggested questions tied to the candidate's background.
+- **Post-interview structured capture** — the assistant prompts interviewers for the specific dimensions the firm cares about, instead of free-form notes that are hard to query.
+- **Outcome tracking** — close the loop on which candidates the assistant flagged early vs. how they performed in the seat. The corpus gets smarter as outcomes feed back in.
+
+Success metric: 40% reduction in time spent on candidate-research tasks; new recruiter ramp-up time cut from months to weeks.
+
+### What I would *not* do
+
+- **No external API calls.** Everything inference-related runs inside the firm's perimeter. Recruiting data is too sensitive.
+- **No chatty fluff.** The assistant should answer the question or say it doesn't know — never fabricate.
+- **No replacement of human judgment.** Hiring decisions stay with people. The assistant compresses search and surfaces patterns; it doesn't rank candidates for offers.
+
 ---
 
 *Built as a take-home demo for a Schonfeld campus-recruiting conversation. All names, scores, and feedback are fictional.*

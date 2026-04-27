@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Schonfeld Recruiting Assistant — Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -11,7 +14,7 @@
     <div class="brand">
       <div class="logo-mark">S</div>
       <div>
-        <div class="brand-name">Schonfeld <span class="brand-sub">Recruiting Assistant</span></div>
+        <div class="brand-name"><span class="brand-serif">Schonfeld</span><span class="brand-divider">|</span><span class="brand-sub">Recruiting Assistant</span></div>
         <div class="brand-tagline">Institutional memory for the recruiting team — private, cited, and instant.</div>
       </div>
     </div>
@@ -48,6 +51,34 @@
         </button>
       </div>
 
+      <div class="panel insights-panel">
+        <div class="panel-title with-pulse">
+          <span class="pulse-dot"></span>
+          Proactive insights
+        </div>
+        <div class="insight" data-q="Which schools have had the highest offer-to-acceptance rates over the past three years?">
+          <div class="insight-icon">↗</div>
+          <div>
+            <div class="insight-headline">Princeton ORFE pipeline converting at 100%</div>
+            <div class="insight-body">Three offers, three accepts across 2024–2025. Consider expanding headcount allocation.</div>
+          </div>
+        </div>
+        <div class="insight" data-q="What are the most common reasons strong technical candidates decline our offers?">
+          <div class="insight-icon">⚠</div>
+          <div>
+            <div class="insight-headline">"Research culture" recurring in quant declines</div>
+            <div class="insight-body">5 of 6 strong-quant declines cited research culture or project ownership. Worth pressure-testing in pod debriefs.</div>
+          </div>
+        </div>
+        <div class="insight" data-q="Have we spoken with Nico Alvarez before?">
+          <div class="insight-icon">⟳</div>
+          <div>
+            <div class="insight-headline">Returning candidate active in 2025 cycle</div>
+            <div class="insight-body">Nico Alvarez declined our 2023 SA offer. Re-engaged for FT — context worth flagging to the interviewer.</div>
+          </div>
+        </div>
+      </div>
+
       <div class="panel">
         <div class="panel-title">Coverage</div>
         <ul class="coverage">
@@ -57,6 +88,18 @@
           <li><span class="dot"></span>#recruiting Slack channels</li>
           <li><span class="dot"></span>Decline / exit conversations</li>
         </ul>
+      </div>
+
+      <div class="panel privacy-panel">
+        <div class="panel-title">Privacy &amp; deployment</div>
+        <ul class="privacy-list">
+          <li><strong>VPC-isolated.</strong> Runs inside Schonfeld's network. No data leaves the firewall.</li>
+          <li><strong>Self-hosted models.</strong> Inference happens on-prem or in a private cloud tenant. No third-party logging.</li>
+          <li><strong>Role-based access.</strong> Recruiters see what their role allows; pod-confidential notes gated to assigned recruiters.</li>
+          <li><strong>Audit log.</strong> Every query and document accessed is logged for compliance review.</li>
+          <li><strong>Source-cited only.</strong> No fabricated answers — every claim links to an underlying document.</li>
+        </ul>
+        <div class="muted" style="margin-top: 8px; font-size: 11.5px;">A real deployment would integrate with Schonfeld's existing IAM and DLP controls.</div>
       </div>
 
       <div class="panel small">
@@ -70,12 +113,12 @@
 
     <section class="chat">
       <div class="messages" id="messages">
-        <div class="msg assistant">
+        <div class="msg assistant welcome">
           <div class="avatar">AI</div>
           <div class="bubble">
             <p><strong>Hi — I'm the Schonfeld Recruiting Assistant.</strong></p>
-            <p>Ask me anything you'd ask a colleague: prior candidate history, pod feedback, school yields, decline trends, or "find similar." I'll cite the source documents I pulled from.</p>
-            <p class="muted">Tip: pick a sample question on the left, or type your own below.</p>
+            <p>Ask me anything you'd ask a colleague: prior candidate history, pod feedback, school yields, decline trends, or "find similar." I'll cite the source documents I pulled from and show you how I got the answer.</p>
+            <p class="muted">Tip: pick a sample question on the left — or one of the proactive insights — to see a fully rendered example.</p>
           </div>
         </div>
       </div>
