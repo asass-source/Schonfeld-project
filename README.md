@@ -29,7 +29,7 @@ The demo answers the five canonical example questions from the brief, each with 
 | Question | What you'll see |
 |---|---|
 | **Have we interviewed this candidate before?** | A candidate card showing every prior cycle, the pod, score, summary, and decline reason if applicable. Try `Sahil Bhattacharya` (two cycles) or `Nico Alvarez` (returning candidate from 2023). |
-| **What feedback did a specific pod give on last summer's interns?** | A list of every intern who rotated through that pod last summer, scores, summaries, and pod-debrief citations. Try the Atlas, Helios, or Apex pods. |
+| **What feedback did a specific pod give on last summer's interns?** | A list of every intern who rotated through that pod last summer, scores, summaries, and pod-debrief citations. Try the Fundamental Equity, Quantitative, or Tactical Trading pods. |
 | **Which schools have had the highest offer-to-acceptance rates?** | A sortable stats table across the past three cycles. |
 | **What are the most common reasons strong technical candidates decline our offers?** | Decline reasons grouped into themes (research culture, training program, comp, geography) with the underlying exit-conversation notes. |
 | **Find past candidates whose backgrounds look similar.** | A simple similarity ranker over school, major, and pod fit. |
@@ -59,7 +59,7 @@ Or push to GitHub Pages (Settings → Pages → Deploy from `main`) and share th
 ├── index.html      # Layout: topbar, sidebar of suggested questions, chat, composer
 ├── styles.css      # Visual style — clean, navy-and-warm-accents, professional
 ├── app.js          # Query routing + answer renderers (with citations)
-├── data.js         # Mock dataset: 28 candidates, 5 pods, 13 schools, 25 source documents
+├── data.js         # Mock dataset: 28 candidates, 4 strategy pods (Schonfeld's public structure), 13 schools, 25 source documents
 └── README.md       # You are here
 ```
 
@@ -87,12 +87,12 @@ The data shape in `data.js` is structured the way a real ingestion pipeline woul
 Click any suggested question on the left, or type:
 
 - `Have we interviewed Sahil Bhattacharya before?`
-- `Show me Atlas pod intern feedback`
+- `Show me Fundamental Equity pod intern feedback`
 - `Which schools have the highest accept rates?`
 - `Why do strong technical candidates decline our offers?`
 - `Find candidates like a Princeton ORFE student interested in fundamental equities`
 - `Have we spoken with Nico Alvarez before?`
-- `What did the Helios pod say about last summer's interns?`
+- `What did the Quantitative pod say about last summer's interns?`
 
 ## What you'll notice in the demo
 
@@ -125,7 +125,7 @@ Goal: from lookup tool to thinking partner.
 
 - **Cohort analytics** — yield by school, pod, role, year. Anomaly detection on year-over-year shifts.
 - **Decline-theme clustering** — automatic theme extraction from exit conversations. Surface emerging concerns to recruiting leadership before they become trends.
-- **Pod-fit similarity** — vector search over candidate profiles + interview transcripts. "Find candidates who looked like our 2024 Atlas hires."
+- **Pod-fit similarity** — vector search over candidate profiles + interview transcripts. "Find candidates who looked like our 2024 Fundamental Equity hires."
 - **Pipeline dashboards** — funnel-stage view, time-to-offer, acceptance latency.
 - **Proactive notifications** — *"Heads up: this candidate declined an offer in 2023 (reason: comp). Worth flagging in the call."*
 
