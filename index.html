@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Schonfeld Recruiting Assistant — Demo</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo-mark">S</div>
+      <div>
+        <div class="brand-name">Schonfeld <span class="brand-sub">Recruiting Assistant</span></div>
+        <div class="brand-tagline">Institutional memory for the recruiting team — private, cited, and instant.</div>
+      </div>
+    </div>
+    <div class="badges">
+      <span class="badge">Demo build</span>
+      <span class="badge soft">Mock data only</span>
+    </div>
+  </header>
+
+  <main class="app">
+    <aside class="sidebar">
+      <div class="panel">
+        <div class="panel-title">Try a question</div>
+        <button class="suggested" data-q="Have we interviewed Sahil Bhattacharya before? What did we say about him?">
+          Have we interviewed Sahil Bhattacharya before?
+        </button>
+        <button class="suggested" data-q="What feedback did the Atlas pod give on last summer's interns?">
+          Atlas pod feedback on last summer's interns
+        </button>
+        <button class="suggested" data-q="Which schools have had the highest offer-to-acceptance rates over the past three years?">
+          Highest school offer-to-accept rates
+        </button>
+        <button class="suggested" data-q="What are the most common reasons strong technical candidates decline our offers?">
+          Why do strong technical candidates decline?
+        </button>
+        <button class="suggested" data-q="Find past candidates similar to a Princeton ORFE student interested in fundamental equities.">
+          Find similar candidates (Princeton, fundamental equities)
+        </button>
+        <button class="suggested" data-q="Show me Helios pod intern feedback.">
+          Helios pod intern feedback
+        </button>
+        <button class="suggested" data-q="Have we spoken with Nico Alvarez before?">
+          Have we spoken with Nico Alvarez before?
+        </button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Coverage</div>
+        <ul class="coverage">
+          <li><span class="dot"></span>Greenhouse ATS</li>
+          <li><span class="dot"></span>Pod debrief docs</li>
+          <li><span class="dot"></span>Interview notes (R1/R2/Final)</li>
+          <li><span class="dot"></span>#recruiting Slack channels</li>
+          <li><span class="dot"></span>Decline / exit conversations</li>
+        </ul>
+      </div>
+
+      <div class="panel small">
+        <div class="panel-title">About this demo</div>
+        <p class="muted">
+          A working sketch of how an internal AI assistant could give Schonfeld's recruiters
+          instant, cited answers across years of recruiting history. All data is fictional.
+        </p>
+      </div>
+    </aside>
+
+    <section class="chat">
+      <div class="messages" id="messages">
+        <div class="msg assistant">
+          <div class="avatar">AI</div>
+          <div class="bubble">
+            <p><strong>Hi — I'm the Schonfeld Recruiting Assistant.</strong></p>
+            <p>Ask me anything you'd ask a colleague: prior candidate history, pod feedback, school yields, decline trends, or "find similar." I'll cite the source documents I pulled from.</p>
+            <p class="muted">Tip: pick a sample question on the left, or type your own below.</p>
+          </div>
+        </div>
+      </div>
+
+      <form class="composer" id="composer">
+        <input
+          type="text"
+          id="input"
+          placeholder="Ask: 'What did Atlas say about last summer's interns?'"
+          autocomplete="off"
+        />
+        <button type="submit">Ask</button>
+      </form>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Mock demo · Dummy data · Built for an exploratory conversation, not a production deployment.</span>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
